@@ -261,3 +261,58 @@ Generating a more complex plot with Elisp functions and directly displaying it i
   (unset grid)
   (reset)
   #+end_src
+
+* Extras
+
+If you use =(set output "somefile.png")=, the filename is automatically captured and the =(gnuplot ...)= call will return that filename. This means you can use the macro in Org-mode src blocks and show the resulting image inline:
+
+#+begin_src org
+,#+begin_src elisp :results file :exports both
+(egnuplot
+ (set terminal 'pngcairo :size [300 300])
+ (set output "somefile.png")
+ (table $expdata (mapcar (lambda (x) (list x (exp (- (* x x)))))
+                         (number-sequence -4.0 4.0 0.1)))
+ (plot (curve $expdata 'using (raw "1:2") 'with 'lines 'title "exp(-x^2)")))
+,#+end_src
+
+,#+RESULTS:
+[[file:somefile.png]]
+#+end_src
+
+You can also generate the script without executing it by setting the ~:dry-run~ option to ~t~:
+
+#+begin_src elisp :exports both
+(egnuplot :dry-run t
+  (set terminal 'pngcairo :size [300 300])
+  (set output "somefile.png")
+  (table $expdata (mapcar (lambda (x) (list x (exp (- (* x x)))))
+                          (number-sequence -4.0 4.0 0.5)))
+  (plot (curve $expdata 'using (raw "1:2") 'with 'lines 'title "exp(-x^2)")))
+#+end_src
+
+#+RESULTS:
+#+begin_example
+set terminal pngcairo size 300,300
+set output "somefile.png"
+$expdata << EOD
+-4.0 1.1253517471925912e-07
+-3.5 4.785117392129009e-06
+-3.0 0.00012340980408667956
+-2.5 0.0019304541362277093
+-2.0 0.01831563888873418
+-1.5 0.10539922456186433
+-1.0 0.36787944117144233
+-0.5 0.7788007830714049
+0.0 1.0
+0.5 0.7788007830714049
+1.0 0.36787944117144233
+1.5 0.10539922456186433
+2.0 0.01831563888873418
+2.5 0.0019304541362277093
+3.0 0.00012340980408667956
+3.5 4.785117392129009e-06
+4.0 1.1253517471925912e-07
+EOD
+plot $expdata using 1:2 with lines title "exp(-x^2)"
+#+end_example

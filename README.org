@@ -1,0 +1,263 @@
+#+TITLE: egnuplot
+
+=egnuplot= offers a macro named ~egnuplot~ to interact with real [[http://www.gnuplot.info][Gnuplot]], allowing you to build, manipulate, and run Gnuplot scripts entirely from Emacs Lisp. This library provides first-class integration of Lisp values, structures, and functions into Gnuplot plotting, making programmatic and repeatable data visualization seamless inside Emacs.
+
+* Installation
+
+First, you need to install [[http://gnuplot.info/][Gnuplot]], go check out its installation instructions for your operating system/distribution.
+
+
+Download =egnuplot.el= file and put it into your =load-path=, afterwards you can simply do the following in your =init.el=:
+
+#+begin_src elisp
+(require 'egnuplot)
+#+end_src
+
+Another way to install =egnuplot= would be using either [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
+
+#+begin_src elisp
+;; Using straight:
+(use-package egnuplot
+  :straight (:host github :repo "isamert/egnuplot"))
+
+;; Using quelpa:
+(use-package egnuplot
+  :quelpa (egnuplot
+           :fetcher github
+           :repo "isamert/egnuplot"))
+#+end_src
+
+* Features
+
+- Write Gnuplot scripts in Emacs Lisp, with native Elisp values and logic.
+- Generate and render plots by calling Gnuplot in the background.
+- Compose and reuse plot data, curves, and settings as Lisp code.
+- Easily parameterize and automate plot generation.
+
+* Thinking in ~egnuplot~
+
+Essentially, ~egnuplot~ automatically converts your forms into Gnuplot scripts, aiming to make the interaction between Emacs Lisp and Gnuplot as smooth and effortless as possible.
+
+Let's see an example:
+
+#+begin_src elisp
+(let ((myfile "/tmp/simple.png"))
+  (egnuplot
+   (set terminal 'pngcairo 'size [800 400])
+   (set output myfile)
+   (table $triangle '((0 0) (1 1) (2 0)))
+   (plot (curve $triangle 'with 'linespoints 'title "A Triangle"))))
+#+end_src
+
+This will be converted into the following script:
+
+#+begin_src elisp
+set terminal pngcairo size 800,400
+set output "/tmp/simple.png"
+$triangle << EOD
+0 0
+1 1
+2 0
+EOD
+plot $triangle with linespoints title "A Triangle"
+#+end_src
+
+There are some special rules and forms that makes interoperability much easier, see the [[Conversion guideline]] section down below.
+
+* Examples
+
+Basic plot:
+
+#+begin_src elisp :results file :exports both
+(egnuplot
+ (set terminal 'pngcairo 'size [300 300])
+ (set output ".assets/triangle.png")
+ (table $triangle '((0 0) (1 1) (2 0)))
+ (plot (curve $triangle 'with 'linespoints 'title "Triangle")))
+#+end_src
+
+#+RESULTS:
+[[file:.assets/triangle.png]]
+
+Functions, styles, and math in plots:
+
+#+begin_src elisp :results file :exports both
+(egnuplot
+ (set terminal 'pngcairo 'size [400 300])
+ (set output ".assets/functions.png")
+ (set style 'line 1 'linecolor 'rgb "#0060ad" 'linetype 1 'linewidth 2)
+ (defconst a "0.9")
+ (defun f (x) "a * sin(x)")
+ (defun g (x) "a * cos(x)")
+ (plot
+  (curve (raw "f(x)") 'title "sin(x)" 'with 'lines 'linestyle 1)
+  (curve (raw "g(x)") 'title "cos(x)" 'with 'lines 'linestyle 2)))
+#+end_src
+
+#+RESULTS:
+[[file:.assets/functions.png]]
+
+Generating data with Elisp:
+
+#+begin_src elisp :results file :exports both
+(egnuplot
+ (set terminal 'pngcairo :size [300 300])
+ (set output ".assets/elisp.png")
+ (table $expdata (mapcar (lambda (x) (list x (exp (- (* x x)))))
+                         (number-sequence -4.0 4.0 0.1)))
+ (plot (curve $expdata 'using (raw "1:2") 'with 'lines 'title "exp(-x^2)")))
+#+end_src
+
+#+RESULTS:
+[[file:.assets/elisp.png]]
+
+Generating a more complex plot with Elisp functions and directly displaying it in Emacs buffer:
+
+#+begin_src elisp
+(let ((svg (egnuplot
+            (set terminal 'svg)
+            (set border 'linewidth 1.5)
+            (set title "A Trio of Functions")
+            (set key 'outside)
+            (set xlabel "x")
+            (set ylabel "y")
+            (set style :line 1 :linecolor 'rgb "#1f77b4" :linetype 1 :linewidth 2)
+            (set style :line 2 :linecolor 'rgb "#ff7f0e" :linetype 2 :linewidth 2 :dashtype 2)
+            (set style :line 3 :linecolor 'rgb "#2ca02c" :linetype 3 :linewidth 2 :dashtype 3)
+            (table $data (mapcar (lambda (x)
+                                   (list x
+                                         (exp (- (* x x)))                             ; e^{-x^2}
+                                         (if (zerop x) 1 (/ (sin x) x))                ; sinc(x)=sin(x)/x
+                                         (* (cos (* 2 x)) (exp (/ (- (* x x)) 2.0))))) ; cos(2x)·e^{-x^2/2}
+                                 (number-sequence -4.0 4.0 0.1)))
+            (plot
+             (curve $data :using (raw "1:2") :with 'lines :title "exp(-x^2)" :linestyle 1)
+             (curve $data :using (raw "1:3") :with 'lines :title "sinc(x)"   :linestyle 2)
+             (curve $data :using (raw "1:4") :with 'lines :title "cos(2x)·exp(-x^2/2)" :linestyle 3)))))
+  (insert-image (create-image svg 'svg t)))
+#+end_src
+
+[[file:.assets/last.png]]
+
+* Conversion guideline
+
+- Symbols and Strings ::
+  - Lisp symbols become Gnuplot identifiers or keywords. For example, ='thing= or =:thing= becomes =thing=.
+  - Strings are rendered as Gnuplot strings, e.g. ="output.png"= stays ="output.png"=.
+
+- Vectors ::
+  - Vectors are comma-joined. =[800 400]= becomes =800,400=. Alternatively you can do ~800\,400~ but escaping commas become tedious.
+  - *Single-element vectors* are displayed as =[value]=, for compatibility with Gnuplot range syntax.
+
+    #+begin_src elisp
+    [800 400]    ; becomes 800,400
+    [-2*pi:2*pi] ; becomes [-2*pi:2*pi]
+    #+end_src
+
+- Raw Gnuplot ::
+  - You can insert raw Gnuplot code anywhere using =(raw "text")=.
+    This is useful if you need to use an exact Gnuplot syntax (for tics, formulas, or feature coverage):
+
+    #+begin_src elisp
+    (set xtics (raw "('-2π' -2*pi, '-π' -pi, 0, 'π' pi, '2π' 2*pi)"))
+    #+end_src
+
+- Variables starting with =$= ::
+  - When you use symbols like =$data=, they’re emitted as-is into the script (useful for referencing Gnuplot tables and blocks, this only happens in =table=, =data= and =curve= special forms):
+
+  #+begin_src elisp
+  (table $data '((0 0) (1 1) (2 0)))
+  (plot (curve $data 'with 'linespoints))
+  #+end_src
+
+- raw :: For anything egnuplot doesn’t cover, just emit the original Gnuplot code:
+
+  #+begin_src elisp
+  (raw "trim(\"  some string  \")")
+  #+end_src
+
+* Special Forms
+
+- set :: Sets a Gnuplot option, mapping directly to =set ...=:
+
+  #+begin_src elisp
+  (set terminal 'pngcairo 'size [800 400])
+  (set output "plot.png")
+  #+end_src
+
+- table :: Defines an inline Gnuplot data block from a list of data:
+
+  #+begin_src elisp
+  (table $triangle '((0 0) (1 1) (2 0)))
+  #+end_src
+
+- data :: Like ~table~, directly constructed from strings:
+
+  #+begin_src elisp
+  (data $triangle
+        "0 0"
+        "1 1"
+        "2 0")
+
+  ;; Don't forget that these are Elisp functions, meaning you can do:
+
+  (apply #'data $triangle '("1 0" "1 1" "2 0"))
+  #+end_src
+
+- curve :: Defines a plot curve. Used within ~plot~ form. Use inline data, functions, or references (=$data=, etc.):
+
+  #+begin_src elisp
+  (curve $triangle 'with 'lines 'title "Triangle")
+  (curve (raw "sin(x)") 'title "sin(x)")
+  #+end_src
+
+- plot :: Plot given curves.
+
+  #+begin_src elisp
+  (plot
+   (curve $data 'with 'linespoints)
+   (curve $triangle 'with 'lines 'title "Triangle")
+   (curve (raw "sin(x)") 'title "sin(x)"))
+
+  ;; Advanced example:
+
+  (let ((files '("file1.csv" "file2.csv" "file3.csv")))
+    (egnuplot
+     ;; ...
+     (apply #'plot (mapcar
+                    (lambda (file)
+                      (curve file 'with 'lines 'title (concat file "'s line")) )
+                    datas))))
+  #+end_src
+
+- defconst, defun :: Inject Gnuplot user variables and functions:
+
+  #+begin_src elisp
+  (defconst a "0.9")
+  (defun f (x) "a*sin(x)")
+  #+end_src
+
+- raw :: For anything egnuplot doesn’t cover, just emit the original Gnuplot code:
+
+  #+begin_src elisp
+  (raw "trim(\"  some string  \")")
+  #+end_src
+
+- run :: Similar to raw but can work with Elisp data types:
+
+  #+begin_src elisp
+  (run 'unset 'grid) ;; → unset grid
+  #+end_src
+
+- comment :: Insert comments in the generated Gnuplot script:
+
+  #+begin_src elisp
+  (comment "This is a comment in the Gnuplot script")
+  #+end_src
+
+- unset, reset :: Works as you expect.
+
+  #+begin_src elisp
+  (unset grid)
+  (reset)
+  #+end_src

@@ -316,3 +316,12 @@ $expdata << EOD
 EOD
 plot $expdata using 1:2 with lines title "exp(-x^2)"
 #+end_example
+
+* Related work
+
+This is mostly a list of "plotting in Emacs", not necessarily "plotting in Elisp". Most of these are for interactive usage rather than programmatic usage but still very interesting:
+
+- [[https://www.gnu.org/software/emacs/manual/html_node/calc/Graphics.html][Calc's GNUPLOT support]]
+- [[https://github.com/larsmagne/eplot][larsmagne/eplot: Emacs library for creating charts]] ([[https://lars.ingebrigtsen.no/2024/06/26/a-new-package-for-making-charts-in-emacs-eplot/][a blogpost from it's creator]])
+- [[https://github.com/emacs-gnuplot/gnuplot][emacs-gnuplot/gnuplot: A major mode for Emacs for interacting with Gnuplot]]
+- [[http://yummymelon.com/devnull/a-proof-of-concept-to-put-a-better-emacs-ui-on-top-of-gnuplot.html][nfdn: A proof of concept to put a better Emacs UI on top of Gnuplot]]
